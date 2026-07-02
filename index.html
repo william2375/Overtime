@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>時光有價｜加班費試算系統</title>
+    <!-- 統一引入極簡文青感 Noto Sans TC 字型 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome 圖標 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Chart.js 圓餅圖套件 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* 核心文青米色調與毛玻璃變數 */
+        :root {
+            --bg-gradient: linear-gradient(135deg, #f5f0ea 0%, #e6ded4 100%);
+            --glass-bg: rgba(255, 255, 255, 0.45);
+            --glass-border: rgba(255, 255, 255, 0.5);
+            --text-main: #4a3e3d;
+            --text-muted: #7d7069;
+            --primary-brown: #826f62;
+            --accent-gold: #c29572;
+            --accent-gold-light: rgba(194, 149, 114, 0.1);
+            --shadow-soft: 0 16px 40px rgba(112, 94, 80, 0.08);
+            --card-radius: 24px;
+            --font-family: 'Noto Sans TC', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background: var(--bg-gradient);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* 背景流動光影效果 */
+        body::before {
+            content: '';
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 253, 249, 0.6) 0%, rgba(255, 253, 249, 0) 70%);
+            top: -100px;
+            left: -100px;
+            z-index: 0;
+        }
+
+        body::after {
+            content: '';
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(212, 189, 172, 0.3) 0%, rgba(212, 189, 172, 0) 70%);
+            bottom: -200px;
+            right: -100px;
+            z-index: 0;
+        }
+
+        .app-container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 960px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--card-radius);
+            box-shadow: var(--shadow-soft);
+            padding: 40px;
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 40px;
+            transition: padding 0.3s ease, gap 0.3s ease;
+        }
+
+        /* 左側：控制輸入面板 */
+        .calculator-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        header {
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-family: var(--font-family);
+            font-size: 2rem;
+            color: var(--primary-brown);
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+
+        header p {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .highlight-badge {
+            display: inline-block;
+            background: var(--accent-gold-light);
+            color: var(--accent-gold);
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border: 1px solid rgba(194, 149, 114, 0.2);
+            margin-top: 5px;
+        }
+
+        /* 輸入區塊 */
+        .input-group {
+            margin-bottom: 24px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--primary-brown);
+            margin-bottom: 8px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 14px;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .input-wrapper input {
+            font-family: var(--font-family);
+            width: 100%;
+            padding: 12px 14px 12px 42px;
+            border: 1px solid rgba(112, 94, 80, 0.15);
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 12px;
+            font-size: 1.05rem;
+            color: var(--text-main);
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .input-wrapper input:focus {
+            border-color: var(--accent-gold);
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 0 4px rgba(194, 149, 114, 0.15);
+        }
+
+        /* 按鈕設計 */
+        button.btn-calculate {
+            font-family: var(--font-family);
+            width: 100%;
+            background: var(--primary-brown);
+            color: #fff;
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(130, 111, 98, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        button.btn-calculate:hover {
+            background: #705e52;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(130, 111, 98, 0.3);
+        }
+
+        button.btn-calculate:active {
+            transform: translateY(1px);
+        }
+
+        /* 右側：計算結果面板 */
+        .results-panel {
+            background: rgba(255, 255, 255, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 18px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            transition: padding 0.3s ease;
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 0;
+            border-bottom: 1px dashed rgba(112, 94, 80, 0.15);
+        }
+
+        .result-item:last-of-type {
+            border-bottom: none;
+        }
+
+        .result-label {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .result-value {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .result-total {
+            margin-top: 20px;
+            background: rgba(194, 149, 114, 0.08);
+            padding: 16px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(194, 149, 114, 0.15);
+        }
+
+        .result-total .result-label {
+            font-weight: 700;
+            color: var(--primary-brown);
+            font-size: 1.1rem;
+        }
+
+        .result-total .result-value {
+            font-size: 1.6rem;
+            color: var(--accent-gold);
+            font-weight: 700;
+        }
+
+        /* 圓餅圖容器 */
+        .chart-box {
+            margin-top: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            position: relative;
+            width: 100%;
+        }
+
+        /* 歡迎提示/初始空白狀態 */
+        .empty-state {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 40px 0;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            color: rgba(130, 111, 98, 0.2);
+            margin-bottom: 15px;
+        }
+
+        /* 隱藏/顯示控制 */
+        .hidden {
+            display: none !important;
+        }
+
+        /* ================= 手機板及平板自適應優化 ================= */
+        @media (max-width: 768px) {
+            body {
+                padding: 16px;
+            }
+
+            .app-container {
+                grid-template-columns: 1fr;
+                padding: 24px;
+                gap: 24px;
+                border-radius: 20px;
+            }
+
+            header {
+                margin-bottom: 20px;
+                text-align: center;
+            }
+
+            header h1 {
+                font-size: 1.75rem;
+            }
+
+            .results-panel {
+                padding: 20px;
+                border-radius: 14px;
+            }
+
+            .result-total .result-value {
+                font-size: 1.4rem;
+            }
+
+            .chart-box {
+                height: 180px;
+                margin-top: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .app-container {
+                padding: 16px;
+                gap: 16px;
+            }
+
+            .results-panel {
+                padding: 16px;
+            }
+
+            .result-item {
+                padding: 12px 0;
+            }
+
+            .result-label {
+                font-size: 0.85rem;
+            }
+
+            .result-value {
+                font-size: 1rem;
+            }
+
+            .result-total {
+                padding: 12px;
+                margin-top: 15px;
+            }
+
+            .result-total .result-label {
+                font-size: 0.95rem;
+            }
+
+            .result-total .result-value {
+                font-size: 1.25rem;
+            }
+
+            button.btn-calculate {
+                padding: 12px;
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <!-- 左側：輸入控制面板 -->
+    <section class="calculator-panel">
+        <div>
+            <header>
+                <h1>時光有價</h1>
+                <p>
+                    加班費自訂試算系統 
+                    <br class="mobile-only">
+                    <span class="highlight-badge"><i class="fa-solid fa-gift"></i> 休息日 2 倍特優</span>
+                </p>
+            </header>
+
+            <!-- 月工資總額 -->
+            <div class="input-group">
+                <label for="monthlyWage">月工資總額 (元)</label>
+                <div class="input-wrapper">
+                    <span class="input-icon"><i class="fa-solid fa-wallet"></i></span>
+                    <input type="number" id="monthlyWage" placeholder="請輸入平日每月的薪資總額" min="0" value="31500">
+                </div>
+            </div>
+
+            <!-- 平日加班 -->
+            <div class="input-group">
+                <label for="weekdayHours">平日加班總小時數 <span style="font-weight: normal; font-size: 0.85rem; color: var(--text-muted);">(單日不超過 2hr, 1.34倍)</span></label>
+                <div class="input-wrapper">
+                    <span class="input-icon"><i class="fa-solid fa-clock"></i></span>
+                    <input type="number" id="weekdayHours" placeholder="平日加班總時數" min="0" step="0.5" value="0">
+                </div>
+            </div>
+
+            <!-- 假日加班 -->
+            <div class="input-group">
+                <label for="weekendHours">休息日加班總小時數 <span style="font-weight: normal; font-size: 0.85rem; color: var(--text-muted);">(2.00倍優待)</span></label>
+                <div class="input-wrapper">
+                    <span class="input-icon"><i class="fa-solid fa-mug-hot"></i></span>
+                    <input type="number" id="weekendHours" placeholder="休息日加班總時數" min="0" step="0.5" value="0">
+                </div>
+            </div>
+        </div>
+
+        <button class="btn-calculate" onclick="calculate()">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> 點擊精算加班費
+        </button>
+    </section>
+
+    <!-- 右側：結果展示面板 -->
+    <section class="results-panel">
+        <!-- 未計算前的引導畫面 -->
+        <div id="emptyState" class="empty-state">
+            <i class="fa-solid fa-seedling"></i>
+            <p>輸入數據並點擊計算，<br>為您的付出留下清晰、溫暖的紀錄。</p>
+        </div>
+
+        <!-- 數據呈現區 -->
+        <div id="resultsContent" class="hidden">
+            <!-- 平日每小時工資額 -->
+            <div class="result-item">
+                <span class="result-label">
+                    <i class="fa-solid fa-circle-info"></i> 平日工資額 (時薪)
+                </span>
+                <span class="result-value" id="valHourly">NT$ 0</span>
+            </div>
+
+            <!-- 平日加班費 -->
+            <div class="result-item">
+                <span class="result-label">
+                    <i class="fa-solid fa-sun"></i> 平日加班費 (1.34倍)
+                </span>
+                <span class="result-value" id="valWeekday">NT$ 0</span>
+            </div>
+
+            <!-- 休息日加班費 -->
+            <div class="result-item">
+                <span class="result-label">
+                    <i class="fa-solid fa-star"></i> 休息日加班費 (2.00倍)
+                </span>
+                <span class="result-value" id="valWeekend" style="color: var(--accent-gold);">NT$ 0</span>
+            </div>
+
+            <!-- 當月總加班費 -->
+            <div class="result-total">
+                <span class="result-label">當月加班費總計</span>
+                <span class="result-value" id="valTotal">NT$ 0</span>
+            </div>
+
+            <!-- 圓餅圖 -->
+            <div class="chart-box">
+                <canvas id="overtimeChart"></canvas>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+    let myChart = null; // 用於儲存 Chart 實例
+
+    function calculate() {
+        // 1. 獲取並解析輸入值
+        const monthlyWage = parseFloat(document.getElementById('monthlyWage').value) || 0;
+        const weekdayHours = parseFloat(document.getElementById('weekdayHours').value) || 0;
+        const weekendHours = parseFloat(document.getElementById('weekendHours').value) || 0;
+
+        if (monthlyWage <= 0) {
+            // 優雅的錯誤提醒，不使用 browser alert
+            document.getElementById('emptyState').innerHTML = `
+                <i class="fa-solid fa-circle-exclamation" style="color: var(--accent-gold); margin-bottom: 12px; display: block; font-size: 2.5rem;"></i>
+                <p style="color: var(--accent-gold); font-weight: 500;">請輸入有效的月工資總額</p>
+            `;
+            document.getElementById('emptyState').classList.remove('hidden');
+            document.getElementById('resultsContent').classList.add('hidden');
+            return;
+        }
+
+        // 2. 進行核心公式計算
+        // 時薪基準：月薪 / 240
+        const hourlyWage = monthlyWage / 240;
+
+        // 平日加班 (固定 1.34 倍，無 1.67)
+        const weekdayPay = weekdayHours * hourlyWage * 1.34;
+
+        // 休息日加班 (公司福利特優：固定 2.00 倍)
+        const weekendPay = weekendHours * hourlyWage * 2.00;
+
+        // 總和
+        const totalPay = weekdayPay + weekendPay;
+
+        // 3. 渲染數據至介面 (四捨五入至整數，時薪保留兩位數)
+        document.getElementById('valHourly').innerText = `NT$ ${hourlyWage.toFixed(2)}`;
+        document.getElementById('valWeekday').innerText = `NT$ ${Math.round(weekdayPay).toLocaleString()}`;
+        document.getElementById('valWeekend').innerText = `NT$ ${Math.round(weekendPay).toLocaleString()}`;
+        document.getElementById('valTotal').innerText = `NT$ ${Math.round(totalPay).toLocaleString()}`;
+
+        // 4. 切換顯示區塊
+        document.getElementById('emptyState').classList.add('hidden');
+        document.getElementById('resultsContent').classList.remove('hidden');
+
+        // 5. 更新或初始化 Chart.js 圓餅圖
+        renderChart(Math.round(weekdayPay), Math.round(weekendPay));
+    }
+
+    function renderChart(weekdayVal, weekendVal) {
+        const ctx = document.getElementById('overtimeChart').getContext('2d');
+        
+        // 若已有圖表實例則先銷毀，避免重疊與效能問題
+        if (myChart) {
+            myChart.destroy();
+        }
+
+        // 當兩者都沒有值或皆為0時，不顯示圖表容器以保持極簡乾淨
+        if (weekdayVal === 0 && weekendVal === 0) {
+            document.getElementById('overtimeChart').style.display = 'none';
+            return;
+        } else {
+            document.getElementById('overtimeChart').style.display = 'block';
+        }
+
+        myChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['平日加班費', '休息日加班費'],
+                datasets: [{
+                    data: [weekdayVal, weekendVal],
+                    backgroundColor: [
+                        '#c29572', // 平日：暖金沙色
+                        '#826f62'  // 休息日：沉穩深棕
+                    ],
+                    borderWidth: 2,
+                    borderColor: 'rgba(255, 255, 255, 0.7)',
+                    hoverOffset: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: {
+                                family: "'Noto Sans TC', sans-serif",
+                                size: 12,
+                                weight: '500'
+                            },
+                            color: '#4a3e3d',
+                            padding: 15,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        titleFont: {
+                            family: "'Noto Sans TC', sans-serif"
+                        },
+                        bodyFont: {
+                            family: "'Noto Sans TC', sans-serif"
+                        },
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed !== null) {
+                                    label += 'NT$ ' + context.parsed.toLocaleString();
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                cutout: '65%' // 形成高質感細環狀圖
+            }
+        });
+    }
+</script>
+
+</body>
+</html>

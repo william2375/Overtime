@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#F3EBDD">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="薪資計算機">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+    <link rel="manifest" href="./manifest.json">
+    <title>薪資計算機｜台灣薪資與加班費</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Noto Sans TC -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js for Visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        milk: {
+                            50: '#fcfaf7',
+                            100: '#f3eee3',
+                            200: '#e6dbcc',
+                            300: '#d4c4b0',
+                            800: '#5c4033',
+                            900: '#4a3b32',
+                        },
+                        coffee: {
+                            light: '#7c6f64',
+                            DEFAULT: '#5c4033',
+                            dark: '#3d2a21'
+                        },
+                        warm: {
+                            warn: '#d97706',
+                            success: '#10b981'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Noto Sans TC"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #fcfaf7;
+            color: #4a3b32;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .card-milk {
+            background-color: #f3eee3;
+            border: 1px solid #e6dbcc;
+            box-shadow: 0 4px 6px -1px rgba(92, 64, 51, 0.04);
+        }
+        .input-milk {
+            background-color: #ffffff;
+            border: 1px solid #d4c4b0;
+            color: #4a3b32;
+        }
+        .input-milk:focus {
+            outline: none;
+            border-color: #5c4033;
+            box-shadow: 0 0 0 2px rgba(92, 64, 51, 0.15);
+        }
+        .btn-coffee {
+            background-color: #5c4033;
+            color: #fcfaf7;
+            transition: all 0.2s ease;
+        }
+        .btn-coffee:hover {
+            background-color: #3d2a21;
+        }
+        /* Hide scrollbars for clean tab navigation */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans antialiased pb-6">
+
+    <!-- Top Navigation / Header -->
+    <header class="bg-milk-100 border-b border-milk-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-2.5 flex justify-between items-center gap-2">
+            <div class="flex items-center space-x-2.5">
+                <div class="p-1.5 bg-coffee rounded-lg text-milk-50 shadow">
+                    <i data-lucide="calculator" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm sm:text-base font-bold text-milk-900 tracking-wide leading-tight">薪資與加班費計算機</h1>
+                    <p class="text-[10px] sm:text-xs text-coffee-light hidden sm:block">台灣勞基法規試算與出勤管理</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-1.5">
+                <!-- Official Calendar Update Button -->
+                <button onclick="openCalendarUpdateModal()" title="更新官方行事曆" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-milk-200 text-milk-900 hover:bg-milk-300 flex items-center gap-1 border border-milk-300">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> <span class="hidden md:inline">更新行事曆</span>
+                </button>
+
+                <!-- Excel Export Button -->
+                <button onclick="exportToExcel()" title="匯出 Excel" class="px-2.5 py-1.5 text-xs font-medium rounded-lg btn-coffee flex items-center gap-1 shadow-sm">
+                    <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> <span class="hidden md:inline">匯出 Excel</span>
+                </button>
+
+                <!-- Backup / Restore Dropdown toggle -->
+                <div class="relative">
+                    <button onclick="toggleMenu('backup-menu')" title="更多設定" class="p-1.5 text-xs font-medium rounded-lg bg-milk-200 text-milk-900 hover:bg-milk-300 flex items-center border border-milk-300">
+                        <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                    </button>
+                    <div id="backup-menu" class="hidden absolute right-0 mt-2 w-48 bg-milk-50 border border-milk-200 rounded-xl shadow-xl py-1 z-50">
+                        <button onclick="exportJsonBackup()" class="w-full text-left px-4 py-2 text-xs text-milk-900 hover:bg-milk-100 flex items-center gap-2">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i> 下載 JSON 備份
+                        </button>
+                        <label class="w-full text-left px-4 py-2 text-xs text-milk-900 hover:bg-milk-100 flex items-center gap-2 cursor-pointer">
+                            <i data-lucide="upload" class="w-3.5 h-3.5"></i> 還原 JSON 備份
+                            <input type="file" id="import-json-file" accept=".json" onchange="importJsonBackup(event)" class="hidden">
+                        </label>
+                        <div class="border-t border-milk-200 my-1"></div>
+                        <button onclick="confirmResetData()" class="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 清除全部資料
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-3 sm:px-4 py-4 flex-grow w-full space-y-4">
+
+        <!-- Responsive Navigation Tabs (Scrollable on mobile) -->
+        <div class="flex border-b border-milk-200 overflow-x-auto no-scrollbar space-x-1 sm:space-x-2">
+            <button onclick="switchTab('settings')" id="tab-btn-settings" class="px-3 py-2 font-medium text-xs sm:text-sm border-b-2 border-coffee text-coffee whitespace-nowrap flex items-center gap-1.5 shrink-0">
+                <i data-lucide="sliders" class="w-4 h-4"></i> 薪資與投保
+            </button>
+            <button onclick="switchTab('calendar')" id="tab-btn-calendar" class="px-3 py-2 font-medium text-xs sm:text-sm border-b-2 border-transparent text-coffee-light hover:text-coffee whitespace-nowrap flex items-center gap-1.5 shrink-0">
+                <i data-lucide="calendar" class="w-4 h-4"></i> 月曆與加班
+            </button>
+            <button onclick="switchTab('summary')" id="tab-btn-summary" class="px-3 py-2 font-medium text-xs sm:text-sm border-b-2 border-transparent text-coffee-light hover:text-coffee whitespace-nowrap flex items-center gap-1.5 shrink-0">
+                <i data-lucide="pie-chart" class="w-4 h-4"></i> 試算與圖表
+            </button>
+            <button onclick="switchTab('calendar-mgmt')" id="tab-btn-calendar-mgmt" class="px-3 py-2 font-medium text-xs sm:text-sm border-b-2 border-transparent text-coffee-light hover:text-coffee whitespace-nowrap flex items-center gap-1.5 shrink-0">
+                <i data-lucide="calendar-days" class="w-4 h-4"></i> 行事曆管理
+            </button>
+        </div>
+
+        <!-- TAB 1: 薪資與投保設定 -->
+        <section id="tab-settings" class="space-y-4">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+                
+                <!-- Left 2 Cols: 8 Custom Fields -->
+                <div class="lg:col-span-2 card-milk rounded-2xl p-4 sm:p-6 space-y-4">
+                    <div class="flex justify-between items-center border-b border-milk-200 pb-3">
+                        <div>
+                            <h2 class="text-sm sm:text-base font-bold text-milk-900 flex items-center gap-2">
+                                <i data-lucide="wallet" class="w-4.5 h-4.5 text-coffee"></i> 薪資與投保設定
+                            </h2>
+                            <p class="text-[11px] text-coffee-light mt-0.5">金額修改後自動計算並即時儲存</p>
+                        </div>
+                        <span class="text-[10px] sm:text-xs px-2 py-0.5 bg-milk-200 rounded-full text-coffee font-medium">跨月沿用</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 sm:gap-4">
+                        <!-- 1. 本俸 -->
+                        <div>
+                            <label class="block text-xs font-medium text-milk-900 mb-1">1. 本俸 (NT$)</label>
+                            <input type="number" id="field-base-salary" oninput="saveAndRecalculate()" class="w-full input-milk rounded-xl px-3 py-2 text-sm" placeholder="例如: 38000">
+                        </div>
+                        <!-- 2. 專業加給 -->
+                        <div>
+                            <label class="block text-xs font-medium text-milk-900 mb-1">2. 專業加給 (NT$)</label>
+                            <input type="number" id="field-prof-allowance" oninput="saveAndRecalculate()" class="w-full input-milk rounded-xl px-3 py-2 text-sm" placeholder="例如: 8000">
+                        </div>
+                        <!-- 3. 伙食津貼 -->
+                        <div>
+                            <label class="block text-xs font-medium text-milk-900 mb-1">3. 伙食津貼 (NT$)</label>
+                            <input type="number" id="field-meal-allowance" oninput="saveAndRecalculate()" class="w-full input-milk rounded-xl px-3 py-2 text-sm" placeholder="例如: 2400">
+                        </div>
+                        <!-- 5. 勞退投保薪資 -->
+                        <div>
+                            <label class="block text-xs font-medium text-milk-900 mb-1">4. 勞退月提繳工資</label>
+                            <input type="number" id="field-pension-insured" oninput="saveAndRecalculate()" class="w-full input-milk rounded-xl px-3 py-2 text-sm" placeholder="例如: 42000">
+                        </div>
+                        <!-- 5. 勞保投保薪資 -->
+                        <div>
+                            <label class="block text-xs font-medium text-milk-900 mb-1">6. 勞保投保薪資</label>
+                            <input type="number" id="field-labor-insured" oninput="saveAndRecalculate()" class="w-full input-milk rounded-xl px-3 py-2 text-sm" placeholder="例如: 45800">
+                        </div>
+                        <!-- 6. 健保投保薪資 -->
+                        <div>
+                            <label class="block text-xs font-medium text-milk-900 mb-1">7. 健保投保薪資</label>
+                            <input type="number" id="field-health-insured" oninput="saveAndRecalculate()" class="w-full input-milk rounded-xl px-3 py-2 text-sm" placeholder="例如: 45800">
+                        </div>
+                        <!-- 7. 健保眷口數 -->
+                        <div>
+                            <label class="block text-xs font-medium text-milk-900 mb-1">8. 健保眷口數 (人)</label>
+                            <input type="number" id="field-health-dependents" min="0" max="10" step="1" oninput="saveAndRecalculate()" class="w-full input-milk rounded-xl px-3 py-2 text-sm" placeholder="例如: 0">
+                        </div>
+                    </div>
+
+                    <!-- Company Welfare Fund Notice & Calculation -->
+                    <div class="bg-milk-50 border border-milk-200 rounded-xl p-3 sm:p-4 flex items-center justify-between">
+                        <div>
+                            <h4 class="text-xs font-bold text-milk-900">公司福利金</h4>
+                            <p class="text-[11px] text-coffee-light">本俸 × 0.5% (四捨五入)</p>
+                        </div>
+                        <div class="text-right">
+                            <span id="display-welfare-fund" class="text-base sm:text-lg font-bold text-coffee">NT$ 0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Col: Custom Deductions & Rules Info -->
+                <div class="space-y-4">
+                    <!-- Custom Deductions Card -->
+                    <div class="card-milk rounded-2xl p-4 sm:p-6 space-y-3">
+                        <div class="flex justify-between items-center border-b border-milk-200 pb-2.5">
+                            <h3 class="text-xs sm:text-sm font-bold text-milk-900 flex items-center gap-1.5">
+                                <i data-lucide="minus-circle" class="w-4 h-4 text-coffee"></i> 其他公司扣款項目
+                            </h3>
+                            <button onclick="openAddDeductionModal()" class="text-xs px-2 py-1 bg-milk-200 text-coffee hover:bg-milk-300 rounded-lg font-medium">新增扣款</button>
+                        </div>
+                        <div id="custom-deductions-list" class="space-y-2 max-h-40 overflow-y-auto">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Overtime Base & Legal Notice Card -->
+                    <div class="card-milk rounded-2xl p-4 sm:p-5 space-y-2">
+                        <h3 class="text-xs sm:text-sm font-bold text-milk-900 flex items-center gap-1.5">
+                            <i data-lucide="info" class="w-4 h-4 text-coffee"></i> 加班費工資基礎
+                        </h3>
+                        <p class="text-xs text-coffee-light leading-relaxed">
+                            公式：<strong class="text-milk-900">本俸 ＋ 專業加給 ＋ 伙食津貼</strong>
+                        </p>
+                        <div class="bg-amber-50/70 border border-amber-200/60 rounded-xl p-2.5 text-[11px] text-amber-900">
+                            便當費為代扣項不計入加項。系統將對照公司 2 倍算法與勞基法參考算法。
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- TAB 2: 月曆與加班登錄 -->
+        <section id="tab-calendar" class="hidden space-y-4">
+            <div class="card-milk rounded-2xl p-3.5 sm:p-6 space-y-4">
+                <!-- Cycle Selector Header -->
+                <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 border-b border-milk-200 pb-3">
+                    <div class="flex items-center justify-between sm:justify-start space-x-2">
+                        <button onclick="changeCycle(-1)" class="p-1.5 bg-milk-200 hover:bg-milk-300 rounded-lg text-milk-900">
+                            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                        </button>
+                        <h2 id="current-cycle-title" class="text-xs sm:text-sm font-bold text-milk-900 text-center">計算週期：2026/09/26 ~ 2026/10/25</h2>
+                        <button onclick="changeCycle(1)" class="p-1.5 bg-milk-200 hover:bg-milk-300 rounded-lg text-milk-900">
+                            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <button onclick="promptNextCycle()" class="w-full sm:w-auto px-3 py-1.5 text-xs font-medium rounded-xl btn-coffee flex items-center justify-center gap-1 shadow-sm">
+                        <i data-lucide="arrow-right-circle" class="w-3.5 h-3.5"></i> 切換下一週期
+                    </button>
+                </div>
+
+                <!-- Overtime Summary bar -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-milk-50 p-3 rounded-xl border border-milk-200 text-center sm:text-left">
+                    <div>
+                        <span class="text-[10px] text-coffee-light block">平日加班</span>
+                        <span id="summary-ot-weekday" class="text-sm sm:text-base font-bold text-coffee">0.0h</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-coffee-light block">休息日出勤</span>
+                        <span id="summary-ot-rest" class="text-sm sm:text-base font-bold text-coffee">0.0h</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-coffee-light block">例假日出勤</span>
+                        <span id="summary-ot-regular" class="text-sm sm:text-base font-bold text-coffee">0.0h</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-coffee-light block">國定假日</span>
+                        <span id="summary-ot-national" class="text-sm sm:text-base font-bold text-coffee">0.0h</span>
+                    </div>
+                </div>
+
+                <!-- Per-cycle bento deduction -->
+                <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <label for="cycle-bento-fee" class="block text-xs font-bold text-amber-900">本期便當費扣款（NT$）</label>
+                        <p class="text-[10px] text-amber-800 mt-0.5">每個薪資週期獨立保存，切換月份後可分別設定與查詢。</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-amber-900">NT$</span>
+                        <input type="number" id="cycle-bento-fee" min="0" step="1" inputmode="numeric"
+                            oninput="updateCurrentCycleBentoFee(this.value)"
+                            class="w-36 input-milk rounded-xl px-3 py-2 text-sm text-right font-bold"
+                            placeholder="輸入本期金額">
+                    </div>
+                </div>
+
+                <!-- Calendar Grid Container -->
+                <div>
+                    <div class="grid grid-cols-7 gap-1 sm:gap-2 text-center font-bold text-[11px] text-coffee mb-1.5">
+                        <div class="text-red-700">日</div>
+                        <div>一</div>
+                        <div>二</div>
+                        <div>三</div>
+                        <div>四</div>
+                        <div>五</div>
+                        <div class="text-red-700">六</div>
+                    </div>
+                    <div id="calendar-grid" class="grid grid-cols-7 gap-1 sm:gap-2">
+                        <!-- Generated by JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: 薪資結果與圖表 -->
+        <section id="tab-summary" class="hidden space-y-4">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+                
+                <!-- Left: Salary Breakdown Details -->
+                <div class="lg:col-span-2 space-y-4">
+                    <!-- Comparison Card: Overtime Pay -->
+                    <div class="card-milk rounded-2xl p-4 sm:p-6 space-y-3">
+                        <h3 class="text-xs sm:text-sm font-bold text-milk-900 flex items-center gap-2 border-b border-milk-200 pb-2.5">
+                            <i data-lucide="calculator" class="w-4 h-4 text-coffee"></i> 加班費算額對照
+                        </h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-milk-50 border border-milk-200 rounded-xl p-3 space-y-1">
+                                <span class="text-[10px] px-1.5 py-0.5 bg-coffee text-milk-50 rounded font-medium">公司指定算法</span>
+                                <div class="pt-1">
+                                    <span id="display-company-ot-total" class="text-base sm:text-lg font-bold text-coffee block">NT$ 0</span>
+                                </div>
+                            </div>
+                            <div class="bg-milk-50 border border-milk-200 rounded-xl p-3 space-y-1">
+                                <span class="text-[10px] px-1.5 py-0.5 bg-warm-success text-white rounded font-medium">法規參考算法</span>
+                                <div class="pt-1">
+                                    <span id="display-statute-ot-total" class="text-base sm:text-lg font-bold text-warm-success block">NT$ 0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gross & Net Salary Summary Table -->
+                    <div class="card-milk rounded-2xl p-4 sm:p-6 space-y-3">
+                        <h3 class="text-xs sm:text-sm font-bold text-milk-900 flex items-center gap-2 border-b border-milk-200 pb-2.5">
+                            <i data-lucide="receipt" class="w-4 h-4 text-coffee"></i> 薪資明細與預估實領
+                        </h3>
+                        <div class="space-y-2 text-xs sm:text-sm">
+                            <div class="flex justify-between py-1 border-b border-milk-200">
+                                <span class="text-coffee-light">固定薪資合計</span>
+                                <span id="res-fixed-sum" class="font-bold text-milk-950">NT$ 0</span>
+                            </div>
+                            <div class="flex justify-between py-1 border-b border-milk-200">
+                                <span class="text-coffee-light">加班費合計 (採公司算法)</span>
+                                <span id="res-ot-sum" class="font-bold text-milk-950">NT$ 0</span>
+                            </div>
+                            <div class="flex justify-between py-1.5 border-b border-milk-200 font-bold bg-milk-50 px-2 rounded-lg">
+                                <span class="text-milk-900">薪資加項總額</span>
+                                <span id="res-gross-sum" class="text-coffee">NT$ 0</span>
+                            </div>
+                            
+                            <div class="pt-2 text-[11px] font-bold text-coffee-light">扣款明細：</div>
+                            <div class="flex justify-between py-0.5 text-xs">
+                                <span class="text-coffee-light">便當費</span>
+                                <span id="res-ded-bento">NT$ 0</span>
+                            </div>
+                            <div class="flex justify-between py-0.5 text-xs">
+                                <span class="text-coffee-light">勞保自付額</span>
+                                <span id="res-ded-labor">NT$ 0</span>
+                            </div>
+                            <div class="flex justify-between py-0.5 text-xs">
+                                <span class="text-coffee-light">就保自付額</span>
+                                <span id="res-ded-emploi">NT$ 0</span>
+                            </div>
+                            <div class="flex justify-between py-0.5 text-xs">
+                                <span class="text-coffee-light">健保自付額</span>
+                                <span id="res-ded-health">NT$ 0</span>
+                            </div>
+                            <div class="flex justify-between py-0.5 text-xs">
+                                <span class="text-coffee-light">福利金</span>
+                                <span id="res-ded-welfare">NT$ 0</span>
+                            </div>
+                            <div id="res-custom-deductions-container"></div>
+
+                            <div class="flex justify-between py-1.5 border-b border-milk-200 font-bold bg-milk-50 px-2 rounded-lg mt-1">
+                                <span class="text-milk-900">扣款總額</span>
+                                <span id="res-ded-sum" class="text-red-700">NT$ 0</span>
+                            </div>
+
+                            <!-- Net Pay Banner -->
+                            <div class="bg-coffee text-milk-50 p-4 rounded-xl flex justify-between items-center shadow mt-3">
+                                <div>
+                                    <span class="text-[11px] text-milk-200 block">預估實領薪資</span>
+                                    <span class="text-[10px] text-milk-300">扣除勞健保與代扣款</span>
+                                </div>
+                                <span id="res-net-pay" class="text-xl sm:text-2xl font-bold">NT$ 0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Charts -->
+                <div class="space-y-4">
+                    <div class="card-milk rounded-2xl p-4 space-y-3">
+                        <h3 class="text-xs sm:text-sm font-bold text-milk-900 flex items-center gap-1.5 border-b border-milk-200 pb-2">
+                            <i data-lucide="pie-chart" class="w-4 h-4 text-coffee"></i> 收入結構比例
+                        </h3>
+                        <div class="h-48 sm:h-56 relative flex items-center justify-center">
+                            <canvas id="incomeChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card-milk rounded-2xl p-4 space-y-3">
+                        <h3 class="text-xs sm:text-sm font-bold text-milk-900 flex items-center gap-1.5 border-b border-milk-200 pb-2">
+                            <i data-lucide="pie-chart" class="w-4 h-4 text-coffee"></i> 扣款結構比例
+                        </h3>
+                        <div class="h-48 sm:h-56 relative flex items-center justify-center">
+                            <canvas id="deductionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- TAB 4: 官方行事曆管理 -->
+        <section id="tab-calendar-mgmt" class="hidden space-y-4">
+            <div class="card-milk rounded-2xl p-4 sm:p-6 space-y-4">
+                <div class="flex justify-between items-center border-b border-milk-200 pb-3">
+                    <div>
+                        <h2 class="text-xs sm:text-base font-bold text-milk-900 flex items-center gap-2">
+                            <i data-lucide="calendar-days" class="w-4.5 h-4.5 text-coffee"></i> 行政院辦公日曆管理
+                        </h2>
+                        <p class="text-[11px] text-coffee-light mt-0.5">自動同步或手動確認國定假日與補班資訊</p>
+                    </div>
+                    <button onclick="openCalendarUpdateModal()" class="px-3 py-1.5 text-xs font-medium rounded-xl btn-coffee flex items-center gap-1 shadow-sm">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 更新
+                    </button>
+                </div>
+
+                <!-- Status details -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div class="bg-milk-50 border border-milk-200 rounded-xl p-2.5">
+                        <span class="text-[10px] text-coffee-light block">適用年度</span>
+                        <span id="mgmt-calendar-year" class="text-xs sm:text-sm font-bold text-milk-900">2026 年</span>
+                    </div>
+                    <div class="bg-milk-50 border border-milk-200 rounded-xl p-2.5">
+                        <span class="text-[10px] text-coffee-light block">最後更新時間</span>
+                        <span id="mgmt-last-update" class="text-[11px] sm:text-xs font-medium text-milk-900">2026-01-01</span>
+                    </div>
+                    <div class="bg-milk-50 border border-milk-200 rounded-xl p-2.5 col-span-2 sm:col-span-1">
+                        <span class="text-[10px] text-coffee-light block">資料來源</span>
+                        <span class="text-[11px] sm:text-xs font-medium text-coffee truncate block">官方公告（需人工核對）</span>
+                    </div>
+                </div>
+
+                <!-- Holiday list table -->
+                <div class="space-y-2">
+                    <h3 class="text-xs font-bold text-milk-900">2026 年度官方假日明細</h3>
+                    <div class="overflow-x-auto max-h-80 border border-milk-200 rounded-xl bg-white">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="bg-milk-100 text-milk-900 sticky top-0 border-b border-milk-200">
+                                <tr>
+                                    <th class="p-2.5">日期</th>
+                                    <th class="p-2.5">名稱</th>
+                                    <th class="p-2.5">性質</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mgmt-holiday-table-body" class="divide-y divide-milk-200">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-milk-100 border-t border-milk-200 py-3 mt-auto text-center text-[10px] sm:text-xs text-coffee-light px-4">
+        <p>台灣薪資與加班費計算機｜資料儲存於本機瀏覽器（非加密）；計算結果為試算，請核對官方規定與薪資單</p>
+    </footer>
+
+    <!-- MODAL: Daily Overtime Input -->
+    <div id="modal-daily" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50 p-3">
+        <div class="card-milk bg-milk-50 w-full max-w-sm rounded-2xl p-4 sm:p-5 shadow-2xl space-y-3 border border-milk-200">
+            <div class="flex justify-between items-center border-b border-milk-200 pb-2">
+                <h3 id="modal-daily-title" class="text-xs sm:text-sm font-bold text-milk-900">登錄出勤與加班</h3>
+                <button onclick="closeModal('modal-daily')" class="text-coffee-light hover:text-coffee">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-medium text-milk-900 mb-1">日期性質</label>
+                    <select id="modal-day-type" class="w-full input-milk rounded-xl px-3 py-2 text-xs">
+                        <option value="workday">正常工作日</option>
+                        <option value="rest">休息日</option>
+                        <option value="regular">例假日</option>
+                        <option value="national">國定假日</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-medium text-milk-900 mb-1">平日加班 (小時)</label>
+                        <input type="number" id="modal-ot-weekday" step="0.5" min="0" max="12" class="w-full input-milk rounded-xl px-2.5 py-1.5 text-xs">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-milk-900 mb-1">休息日出勤 (小時)</label>
+                        <input type="number" id="modal-ot-rest" step="0.5" min="0" max="12" class="w-full input-milk rounded-xl px-2.5 py-1.5 text-xs">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-milk-900 mb-1">例假日出勤 (小時)</label>
+                        <input type="number" id="modal-ot-regular" step="0.5" min="0" max="12" class="w-full input-milk rounded-xl px-2.5 py-1.5 text-xs">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-milk-900 mb-1">國定假日出勤 (小時)</label>
+                        <input type="number" id="modal-ot-national" step="0.5" min="0" max="12" class="w-full input-milk rounded-xl px-2.5 py-1.5 text-xs">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-medium text-milk-900 mb-1">備註說明</label>
+                    <input type="text" id="modal-ot-note" class="w-full input-milk rounded-xl px-3 py-1.5 text-xs" placeholder="例如：專案加班">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2 border-t border-milk-200">
+                <button onclick="closeModal('modal-daily')" class="px-3 py-1.5 text-xs font-medium rounded-xl bg-milk-200 text-milk-900 hover:bg-milk-300">取消</button>
+                <button onclick="saveDailyRecord()" class="px-3 py-1.5 text-xs font-medium rounded-xl btn-coffee">儲存變更</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Add Custom Deduction -->
+    <div id="modal-deduction" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50 p-3">
+        <div class="card-milk bg-milk-50 w-full max-w-xs rounded-2xl p-4 shadow-2xl space-y-3 border border-milk-200">
+            <div class="flex justify-between items-center border-b border-milk-200 pb-2">
+                <h3 class="text-xs sm:text-sm font-bold text-milk-900">新增自訂扣款項目</h3>
+                <button onclick="closeModal('modal-deduction')" class="text-coffee-light hover:text-coffee">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="space-y-2 text-xs">
+                <div>
+                    <label class="block font-medium text-milk-900 mb-1">扣款名稱</label>
+                    <input type="text" id="new-ded-name" class="w-full input-milk rounded-xl px-3 py-1.5 text-xs" placeholder="例如：福委會會費">
+                </div>
+                <div>
+                    <label class="block font-medium text-milk-900 mb-1">扣款金額 (NT$)</label>
+                    <input type="number" id="new-ded-amount" class="w-full input-milk rounded-xl px-3 py-1.5 text-xs" placeholder="例如：500">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2 border-t border-milk-200">
+                <button onclick="closeModal('modal-deduction')" class="px-3 py-1.5 text-xs font-medium rounded-xl bg-milk-200 text-milk-900 hover:bg-milk-300">取消</button>
+                <button onclick="saveCustomDeduction()" class="px-3 py-1.5 text-xs font-medium rounded-xl btn-coffee">新增</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Official Calendar Update -->
+    <div id="modal-calendar-update" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50 p-3">
+        <div class="card-milk bg-milk-50 w-full max-w-sm rounded-2xl p-4 sm:p-5 shadow-2xl space-y-3 border border-milk-200">
+            <div class="flex justify-between items-center border-b border-milk-200 pb-2">
+                <h3 class="text-xs sm:text-sm font-bold text-milk-900">更新官方行事曆</h3>
+                <button onclick="closeModal('modal-calendar-update')" class="text-coffee-light hover:text-coffee">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div id="calendar-update-content" class="space-y-3 text-xs">
+                <p class="text-coffee-light">與行政院人事行政總處連線中...</p>
+                <div class="flex justify-center py-4">
+                    <i data-lucide="loader" class="w-6 h-6 animate-spin text-coffee"></i>
+                </div>
+            </div>
+            <div class="flex justify-end pt-2 border-t border-milk-200" id="calendar-update-actions">
+                <button onclick="closeModal('modal-calendar-update')" class="px-3 py-1.5 text-xs font-medium rounded-xl bg-milk-200 text-milk-900 hover:bg-milk-300">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Next Cycle Prompt -->
+    <div id="modal-next-cycle" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50 p-3">
+        <div class="card-milk bg-milk-50 w-full max-w-xs sm:max-w-md rounded-2xl p-4 sm:p-5 shadow-2xl space-y-3 border border-milk-200">
+            <div class="flex justify-between items-center border-b border-milk-200 pb-2">
+                <h3 class="text-xs sm:text-sm font-bold text-milk-900">準備切換至下一個計算週期</h3>
+                <button onclick="closeModal('modal-next-cycle')" class="text-coffee-light hover:text-coffee">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <p class="text-xs text-coffee-light leading-relaxed">
+                切換前建議先匯出 Excel 以保存本期紀錄。歷史週期紀錄將完整保留。
+            </p>
+            <div class="flex flex-col gap-1.5 pt-2 border-t border-milk-200">
+                <button onclick="exportToExcelAndSwitch()" class="w-full px-3 py-2 text-xs font-medium rounded-xl btn-coffee flex items-center justify-center gap-1.5">
+                    <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> 先匯出 Excel 並切換
+                </button>
+                <button onclick="proceedNextCycle()" class="w-full px-3 py-1.5 text-xs font-medium rounded-xl bg-milk-200 text-milk-900 hover:bg-milk-300">
+                    直接切換（不匯出）
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script Logic -->
+    <script>
+        // --- State & Default Data ---
+        let appState = {
+            settings: {
+                baseSalary: 38000,
+                profAllowance: 8000,
+                mealAllowance: 2400,
+                bentoFee: 1200,
+                pensionInsured: 42000,
+                laborInsured: 45800,
+                healthInsured: 45800,
+                healthDependents: 0
+            },
+            customDeductions: [],
+            currentCycle: '2026-10', // format YYYY-MM
+            attendanceRecords: {},
+            cycleDeductions: {},
+            officialHolidays: {},
+            officialWorkdays: {},
+            calendarSyncMeta: {},
+            lastCalendarUpdate: ''
+        };
+
+        let incomeChartInstance = null;
+        let deductionChartInstance = null;
+        let activeEditingDate = null;
+
+        const default2026Holidays = {
+            "2026-01-01": { name: "元旦", type: "national" },
+            "2026-02-16": { name: "除夕", type: "national" },
+            "2026-02-17": { name: "春節", type: "national" },
+            "2026-02-18": { name: "春節", type: "national" },
+            "2026-02-19": { name: "春節", type: "national" },
+            "2026-04-05": { name: "清明節", type: "national" },
+            "2026-05-01": { name: "勞動節", type: "national" },
+            "2026-06-19": { name: "端午節", type: "national" },
+            "2026-09-25": { name: "中秋節", type: "national" },
+            "2026-10-10": { name: "國慶日", type: "national" }
+        };
+
+        // --- Initialization ---
+        window.onload = function() {
+            loadFromLocalStorage();
+            safeInitLucide();
+            renderSettingsToUI();
+            renderCalendar();
+            calculateAndRenderSummary();
+            renderOfficialManagementTable();
+            initCharts();
+            updateCharts();
+            registerServiceWorker();
+        };
+
+        function safeInitLucide() {
+            if (window.lucide && typeof lucide.createIcons === 'function') {
+                try {
+                    lucide.createIcons();
+                } catch(e) {
+                    console.warn("Lucide icon init warning:", e);
+                }
+            }
+        }
+
+        // --- Local Storage Management ---
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem('taiwan_salary_app_state_2026');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    appState = {
+                        ...appState,
+                        ...parsed,
+                        settings: { ...appState.settings, ...(parsed.settings || {}) },
+                        customDeductions: Array.isArray(parsed.customDeductions) ? parsed.customDeductions : [],
+                        attendanceRecords: parsed.attendanceRecords && typeof parsed.attendanceRecords === 'object' ? parsed.attendanceRecords : {},
+                        cycleDeductions: parsed.cycleDeductions && typeof parsed.cycleDeductions === 'object' ? parsed.cycleDeductions : {},
+                        officialHolidays: parsed.officialHolidays && typeof parsed.officialHolidays === 'object' ? parsed.officialHolidays : {},
+                        officialWorkdays: parsed.officialWorkdays && typeof parsed.officialWorkdays === 'object' ? parsed.officialWorkdays : {},
+                        calendarSyncMeta: parsed.calendarSyncMeta && typeof parsed.calendarSyncMeta === 'object' ? parsed.calendarSyncMeta : {}
+                    };
+                    // 舊版資料相容：將原本固定便當費移轉至當時的薪資週期。
+                    if (!parsed.cycleDeductions || typeof parsed.cycleDeductions !== 'object') {
+                        appState.cycleDeductions = {
+                            [appState.currentCycle]: Number(parsed.settings?.bentoFee ?? 0)
+                        };
+                    }
+                } catch(e) {
+                    console.error("Failed to parse saved state", e);
+                }
+            }
+            if (!appState.officialHolidays || Object.keys(appState.officialHolidays).length === 0) {
+                appState.officialHolidays = default2026Holidays;
+            }
+            if (!appState.cycleDeductions || typeof appState.cycleDeductions !== 'object') {
+                appState.cycleDeductions = {};
+            }
+            if (appState.cycleDeductions[appState.currentCycle] === undefined && !saved) {
+                // 首次使用沿用舊版預設示範金額；之後每期各自保存。
+                appState.cycleDeductions[appState.currentCycle] = 1200;
+            }
+            if (!appState.officialWorkdays) appState.officialWorkdays = {};
+            if (!appState.calendarSyncMeta) appState.calendarSyncMeta = {};
+        }
+
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem('taiwan_salary_app_state_2026', JSON.stringify(appState));
+                return true;
+            } catch (e) {
+                console.error('無法儲存資料：', e);
+                alert('瀏覽器無法儲存資料，可能是儲存空間不足或目前瀏覽模式不支援。請先匯出 JSON 備份。');
+                return false;
+            }
+        }
+
+        function saveAndRecalculate() {
+            readSettingsFromUI();
+            saveToLocalStorage();
+            calculateAndRenderSummary();
+        }
+
+        // --- Tab Switcher ---
+        function switchTab(tabId) {
+            const tabs = ['settings', 'calendar', 'summary', 'calendar-mgmt'];
+            tabs.forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                const btn = document.getElementById(`tab-btn-${t}`);
+                if (el && btn) {
+                    if (t === tabId) {
+                        el.classList.remove('hidden');
+                        btn.className = "px-3 py-2 font-medium text-xs sm:text-sm border-b-2 border-coffee text-coffee whitespace-nowrap flex items-center gap-1.5 shrink-0";
+                    } else {
+                        el.classList.add('hidden');
+                        btn.className = "px-3 py-2 font-medium text-xs sm:text-sm border-b-2 border-transparent text-coffee-light hover:text-coffee whitespace-nowrap flex items-center gap-1.5 shrink-0";
+                    }
+                }
+            });
+            
+            try {
+                if (tabId === 'summary') {
+                    calculateAndRenderSummary();
+                    updateCharts();
+                } else if (tabId === 'calendar') {
+                    renderCalendar();
+                }
+            } catch (err) {
+                console.warn("Tab switch callback issue handled:", err);
+            }
+            safeInitLucide();
+        }
+
+        function toggleMenu(menuId) {
+            const menu = document.getElementById(menuId);
+            if (menu) menu.classList.toggle('hidden');
+        }
+
+        // --- Settings I/O ---
+        function readSettingsFromUI() {
+            appState.settings.baseSalary = parseFloat(document.getElementById('field-base-salary')?.value) || 0;
+            appState.settings.profAllowance = parseFloat(document.getElementById('field-prof-allowance')?.value) || 0;
+            appState.settings.mealAllowance = parseFloat(document.getElementById('field-meal-allowance')?.value) || 0;
+            appState.settings.pensionInsured = parseFloat(document.getElementById('field-pension-insured')?.value) || 0;
+            appState.settings.laborInsured = parseFloat(document.getElementById('field-labor-insured')?.value) || 0;
+            appState.settings.healthInsured = parseFloat(document.getElementById('field-health-insured')?.value) || 0;
+            appState.settings.healthDependents = parseInt(document.getElementById('field-health-dependents')?.value) || 0;
+        }
+
+        function renderSettingsToUI() {
+            if (!document.getElementById('field-base-salary')) return;
+            document.getElementById('field-base-salary').value = appState.settings.baseSalary;
+            document.getElementById('field-prof-allowance').value = appState.settings.profAllowance;
+            document.getElementById('field-meal-allowance').value = appState.settings.mealAllowance;
+            document.getElementById('field-pension-insured').value = appState.settings.pensionInsured;
+            document.getElementById('field-labor-insured').value = appState.settings.laborInsured;
+            document.getElementById('field-health-insured').value = appState.settings.healthInsured;
+            document.getElementById('field-health-dependents').value = appState.settings.healthDependents;
+
+            renderCustomDeductionsList();
+        }
+
+        // --- Custom Deductions ---
+        function openAddDeductionModal() {
+            document.getElementById('new-ded-name').value = '';
+            document.getElementById('new-ded-amount').value = '';
+            document.getElementById('modal-deduction').classList.remove('hidden');
+            document.getElementById('modal-deduction').classList.add('flex');
+        }
+
+        function saveCustomDeduction() {
+            const name = document.getElementById('new-ded-name').value.trim();
+            const amount = parseFloat(document.getElementById('new-ded-amount').value) || 0;
+            if (!name) return;
+            appState.customDeductions.push({ id: Date.now(), name, amount });
+            saveAndRecalculate();
+            renderCustomDeductionsList();
+            closeModal('modal-deduction');
+        }
+
+        function removeCustomDeduction(id) {
+            appState.customDeductions = appState.customDeductions.filter(d => d.id !== id);
+            saveAndRecalculate();
+            renderCustomDeductionsList();
+        }
+
+        function renderCustomDeductionsList() {
+            const container = document.getElementById('custom-deductions-list');
+            if (!container) return;
+            container.innerHTML = '';
+            if (appState.customDeductions.length === 0) {
+                container.innerHTML = `<p class="text-[11px] text-coffee-light italic">無其他扣款項目。</p>`;
+                return;
+            }
+            appState.customDeductions.forEach(d => {
+                const item = document.createElement('div');
+                item.className = "flex justify-between items-center bg-milk-50 p-2 rounded-lg border border-milk-200 text-xs";
+                const nameEl = document.createElement('span'); nameEl.textContent = d.name || '其他扣款';
+                const right = document.createElement('div'); right.className = 'flex items-center gap-2';
+                const amountEl = document.createElement('span'); amountEl.className = 'font-bold'; amountEl.textContent = `NT$ ${Number(d.amount || 0).toLocaleString()}`;
+                const removeBtn = document.createElement('button'); removeBtn.className = 'text-red-600 hover:text-red-800';
+                removeBtn.type = 'button'; removeBtn.textContent = '刪除'; removeBtn.onclick = () => removeCustomDeduction(d.id);
+                right.append(amountEl, removeBtn); item.append(nameEl, right); container.appendChild(item);
+            });
+            safeInitLucide();
+        }
+
+        // --- Cycle & Calendar Logic ---
+        function getCycleDateRange(cycleStr) {
+            const [y, m] = cycleStr.split('-').map(Number);
+            let prevY = y, prevM = m - 1;
+            if (prevM === 0) { prevM = 12; prevY -= 1; }
+            
+            const startDate = new Date(prevY, prevM - 1, 26);
+            const endDate = new Date(y, m - 1, 25);
+            return { startDate, endDate };
+        }
+
+        function changeCycle(offset) {
+            const [y, m] = appState.currentCycle.split('-').map(Number);
+            let newM = m + offset;
+            let newY = y;
+            if (newM > 12) { newM = 1; newY += 1; }
+            if (newM < 1) { newM = 12; newY -= 1; }
+            appState.currentCycle = `${newY}-${String(newM).padStart(2, '0')}`;
+            saveToLocalStorage();
+            renderCalendar();
+            calculateAndRenderSummary();
+        }
+
+        function promptNextCycle() {
+            document.getElementById('modal-next-cycle').classList.remove('hidden');
+            document.getElementById('modal-next-cycle').classList.add('flex');
+        }
+
+        function proceedNextCycle() {
+            closeModal('modal-next-cycle');
+            changeCycle(1);
+        }
+
+        function exportToExcelAndSwitch() {
+            exportToExcel();
+            closeModal('modal-next-cycle');
+            changeCycle(1);
+        }
+
+        function getCurrentCycleBentoFee() {
+            if (!appState.cycleDeductions || typeof appState.cycleDeductions !== 'object') {
+                appState.cycleDeductions = {};
+            }
+            return Math.max(0, Number(appState.cycleDeductions[appState.currentCycle] || 0));
+        }
+
+        function updateCurrentCycleBentoFee(value) {
+            if (!appState.cycleDeductions || typeof appState.cycleDeductions !== 'object') {
+                appState.cycleDeductions = {};
+            }
+            appState.cycleDeductions[appState.currentCycle] = Math.max(0, Number(value) || 0);
+            saveToLocalStorage();
+            calculateAndRenderSummary();
+        }
+
+        function renderCycleBentoFee() {
+            const input = document.getElementById('cycle-bento-fee');
+            if (input) input.value = getCurrentCycleBentoFee();
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendar-grid');
+            if (!grid) return;
+            
+            const { startDate, endDate } = getCycleDateRange(appState.currentCycle);
+            const titleEl = document.getElementById('current-cycle-title');
+            if (titleEl) {
+                titleEl.textContent = `計算週期：${startDate.getFullYear()}/${String(startDate.getMonth()+1).padStart(2,'0')}/26 ~ ${endDate.getFullYear()}/${String(endDate.getMonth()+1).padStart(2,'0')}/25`;
+            }
+            renderCycleBentoFee();
+
+            grid.innerHTML = '';
+
+            // 1. Padding offset for initial day-of-week
+            const startDayOfWeek = startDate.getDay(); // 0 = Sunday, 6 = Saturday
+            for (let i = 0; i < startDayOfWeek; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = "opacity-0 h-16 sm:h-20 pointer-events-none";
+                grid.appendChild(emptyCell);
+            }
+
+            let totalWeekdayOT = 0, totalRestOT = 0, totalRegularOT = 0, totalNationalOT = 0;
+
+            // 2. Iterate days with exact timestamp step (86,400,000ms per day)
+            let curr = new Date(startDate);
+            while (curr <= endDate) {
+                const year = curr.getFullYear();
+                const month = String(curr.getMonth() + 1).padStart(2, '0');
+                const day = String(curr.getDate()).padStart(2, '0');
+                const dateKey = `${year}-${month}-${day}`;
+                
+                const holidayInfo = appState.officialHolidays[dateKey];
+                const workdayInfo = appState.officialWorkdays && appState.officialWorkdays[dateKey];
+                const savedRecord = appState.attendanceRecords[dateKey];
+
+                const record = {
+                    dayType: savedRecord ? savedRecord.dayType : 'workday',
+                    otWeekday: savedRecord ? Number(savedRecord.otWeekday || 0) : 0,
+                    otRest: savedRecord ? Number(savedRecord.otRest || 0) : 0,
+                    otRegular: savedRecord ? Number(savedRecord.otRegular || 0) : 0,
+                    otNational: savedRecord ? Number(savedRecord.otNational || 0) : 0,
+                    note: savedRecord ? savedRecord.note : ''
+                };
+
+                totalWeekdayOT += record.otWeekday;
+                totalRestOT += record.otRest;
+                totalRegularOT += record.otRegular;
+                totalNationalOT += record.otNational;
+
+                const cell = document.createElement('div');
+                
+                // UNIFIED COLOR: All dates share the exact same dark brown text color
+                const textColor = 'text-milk-900 font-semibold';
+                const cellBg = holidayInfo ? 'bg-rose-50/40 border-rose-200' : (workdayInfo ? 'bg-emerald-50/50 border-emerald-200' : 'bg-white border-milk-200');
+
+                const totalOTForDay = record.otWeekday + record.otRest + record.otRegular + record.otNational;
+
+                cell.className = `border ${cellBg} rounded-xl p-1.5 flex flex-col justify-between h-16 sm:h-20 cursor-pointer hover:shadow-sm transition`;
+                cell.onclick = () => openDailyModal(dateKey);
+
+                cell.innerHTML = `
+                    <div class="flex justify-between items-start text-xs leading-none">
+                        <span class="${textColor}">${curr.getDate()}</span>
+                        ${holidayInfo ? `<span class="text-[9px] text-rose-700 bg-rose-100/80 px-1 py-0.5 rounded">${String(holidayInfo.name || '放假').substring(0,2)}</span>` : (workdayInfo ? `<span class="text-[9px] text-emerald-700 bg-emerald-100 px-1 py-0.5 rounded">補班</span>` : '')}
+                    </div>
+                    <div class="text-center my-auto">
+                        ${totalOTForDay > 0 ? `<span class="text-[10px] font-bold text-coffee bg-milk-200 px-1.5 py-0.5 rounded-full inline-block">${totalOTForDay}h</span>` : ''}
+                    </div>
+                    <div class="text-[9px] text-coffee-light truncate text-right">
+                        ${record.note ? record.note : ''}
+                    </div>
+                `;
+                grid.appendChild(cell);
+
+                curr.setDate(curr.getDate() + 1);
+            }
+
+            // Update overtime totals in summary bar
+            if (document.getElementById('summary-ot-weekday')) {
+                document.getElementById('summary-ot-weekday').textContent = `${totalWeekdayOT.toFixed(1)}h`;
+                document.getElementById('summary-ot-rest').textContent = `${totalRestOT.toFixed(1)}h`;
+                document.getElementById('summary-ot-regular').textContent = `${totalRegularOT.toFixed(1)}h`;
+                document.getElementById('summary-ot-national').textContent = `${totalNationalOT.toFixed(1)}h`;
+            }
+        }
+
+        function openDailyModal(dateKey) {
+            activeEditingDate = dateKey;
+            const defaultType = appState.officialHolidays[dateKey] ? 'national' : 'workday';
+            const record = appState.attendanceRecords[dateKey] || { dayType: defaultType, otWeekday: '', otRest: '', otRegular: '', otNational: '', note: '' };
+            
+            document.getElementById('modal-daily-title').textContent = `出勤登錄 (${dateKey})`;
+            document.getElementById('modal-day-type').value = record.dayType;
+            document.getElementById('modal-ot-weekday').value = record.otWeekday;
+            document.getElementById('modal-ot-rest').value = record.otRest;
+            document.getElementById('modal-ot-regular').value = record.otRegular;
+            document.getElementById('modal-ot-national').value = record.otNational;
+            document.getElementById('modal-ot-note').value = record.note;
+
+            document.getElementById('modal-daily').classList.remove('hidden');
+            document.getElementById('modal-daily').classList.add('flex');
+        }
+
+        function saveDailyRecord() {
+            if (!activeEditingDate) return;
+            appState.attendanceRecords[activeEditingDate] = {
+                dayType: document.getElementById('modal-day-type').value,
+                otWeekday: parseFloat(document.getElementById('modal-ot-weekday').value) || 0,
+                otRest: parseFloat(document.getElementById('modal-ot-rest').value) || 0,
+                otRegular: parseFloat(document.getElementById('modal-ot-regular').value) || 0,
+                otNational: parseFloat(document.getElementById('modal-ot-national').value) || 0,
+                note: document.getElementById('modal-ot-note').value.trim()
+            };
+            saveToLocalStorage();
+            renderCalendar();
+            calculateAndRenderSummary();
+            closeModal('modal-daily');
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        // --- Calculation Engine ---
+        // 試算基礎：月薪制平日每小時工資額 = 約定月薪性質工資 / 240。
+        // 加班級距必須逐日計算，不可將整個薪資週期的時數合併後套級距。
+        function calcWeekdayOT(hours, hourlyRate) {
+            const h = Math.max(0, Number(hours) || 0);
+            return Math.min(h, 2) * hourlyRate * (4/3)
+                + Math.max(0, Math.min(h - 2, 2)) * hourlyRate * (5/3)
+                + Math.max(0, h - 4) * hourlyRate * (8/3);
+        }
+
+        function calcRestDayOT(hours, hourlyRate) {
+            const h = Math.max(0, Number(hours) || 0);
+            return Math.min(h, 2) * hourlyRate * (4/3)
+                + Math.max(0, Math.min(h - 2, 6)) * hourlyRate * (5/3)
+                + Math.max(0, Math.min(h - 8, 4)) * hourlyRate * (8/3);
+        }
+
+        function getCycleOvertimeTotals() {
+            const { startDate, endDate } = getCycleDateRange(appState.currentCycle);
+            const hourlyRate = (Number(appState.settings.baseSalary || 0) + Number(appState.settings.profAllowance || 0) + Number(appState.settings.mealAllowance || 0)) / 240;
+            let company = 0, statute = 0;
+            let hours = { weekday: 0, rest: 0, regular: 0, national: 0 };
+            const daily = [];
+            const curr = new Date(startDate);
+            while (curr <= endDate) {
+                const key = `${curr.getFullYear()}-${String(curr.getMonth()+1).padStart(2,'0')}-${String(curr.getDate()).padStart(2,'0')}`;
+                const r = appState.attendanceRecords[key];
+                if (r) {
+                    const w = Math.max(0, Number(r.otWeekday || 0));
+                    const rest = Math.max(0, Number(r.otRest || 0));
+                    const regular = Math.max(0, Number(r.otRegular || 0));
+                    const national = Math.max(0, Number(r.otNational || 0));
+                    hours.weekday += w; hours.rest += rest; hours.regular += regular; hours.national += national;
+                    const weekdayPay = calcWeekdayOT(w, hourlyRate);
+                    const companyOther = (rest + regular + national) * hourlyRate * 2;
+                    const statuteOther = calcRestDayOT(rest, hourlyRate) + regular * hourlyRate * 2;
+                    // 國定假日：月薪制出勤 8 小時內，另加發一日工資；超過 8 小時部分再按平日延長工時級距估算。
+                    const nationalPay = national > 0 ? (8 * hourlyRate + (national > 8 ? calcWeekdayOT(national - 8, hourlyRate) : 0)) : 0;
+                    company += weekdayPay + companyOther;
+                    statute += weekdayPay + statuteOther + nationalPay;
+                    daily.push({ date: key, weekdayPay, restPay: calcRestDayOT(rest, hourlyRate), regularPay: regular * hourlyRate * 2, nationalPay });
+                }
+                curr.setDate(curr.getDate() + 1);
+            }
+            return { hourlyRate, company: Math.round(company), statute: Math.round(statute), hours, daily };
+        }
+
+        function calculateAndRenderSummary() {
+            const s = appState.settings;
+            const welfareFund = Math.round((Number(s.baseSalary) || 0) * 0.005);
+            const welfareEl = document.getElementById('display-welfare-fund');
+            if (welfareEl) welfareEl.textContent = `NT$ ${welfareFund.toLocaleString()}`;
+
+            const fixedSum = Number(s.baseSalary || 0) + Number(s.profAllowance || 0) + Number(s.mealAllowance || 0);
+            const ot = getCycleOvertimeTotals();
+            const companyTotalOT = ot.company;
+            const statuteTotalOT = ot.statute;
+            const companyEl = document.getElementById('display-company-ot-total');
+            const statuteEl = document.getElementById('display-statute-ot-total');
+            if (companyEl) companyEl.textContent = `NT$ ${companyTotalOT.toLocaleString()}`;
+            if (statuteEl) statuteEl.textContent = `NT$ ${statuteTotalOT.toLocaleString()}`;
+
+            const grossSum = fixedSum + companyTotalOT;
+            const dedBento = getCurrentCycleBentoFee();
+            // 此處為估算值；實際勞健保以當年度投保級距、身分及官方保費表為準。
+            const dedLabor = Math.round(Number(s.laborInsured || 0) * 0.115 * 0.20);
+            const dedEmploi = Math.round(Number(s.laborInsured || 0) * 0.01 * 0.20);
+            const dependents = Math.min(3, Math.max(0, Number(s.healthDependents || 0)));
+            const dedHealth = Math.round(Number(s.healthInsured || 0) * 0.0517 * 0.30 * (1 + dependents));
+
+            let customDedSum = 0;
+            const customContainer = document.getElementById('res-custom-deductions-container');
+            if (customContainer) {
+                customContainer.innerHTML = '';
+                (appState.customDeductions || []).forEach(d => {
+                    const amount = Number(d.amount || 0); customDedSum += amount;
+                    const row = document.createElement('div'); row.className = 'flex justify-between py-0.5 text-xs';
+                    const name = document.createElement('span'); name.className = 'text-coffee-light'; name.textContent = d.name || '其他扣款';
+                    const val = document.createElement('span'); val.textContent = `NT$ ${amount.toLocaleString()}`;
+                    row.append(name, val); customContainer.appendChild(row);
+                });
+            } else {
+                customDedSum = (appState.customDeductions || []).reduce((a, d) => a + Number(d.amount || 0), 0);
+            }
+
+            const totalDeductions = dedBento + dedLabor + dedEmploi + dedHealth + welfareFund + customDedSum;
+            const netPay = grossSum - totalDeductions;
+            const put = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = `NT$ ${Number(value).toLocaleString()}`; };
+            put('res-fixed-sum', fixedSum); put('res-ot-sum', companyTotalOT); put('res-gross-sum', grossSum);
+            put('res-ded-bento', dedBento); put('res-ded-labor', dedLabor); put('res-ded-emploi', dedEmploi);
+            put('res-ded-health', dedHealth); put('res-ded-welfare', welfareFund); put('res-ded-sum', totalDeductions); put('res-net-pay', netPay);
+            updateCharts();
+        }
+
+        // --- Charts ---
+        function initCharts() {
+            const incomeEl = document.getElementById('incomeChart');
+            const deductionEl = document.getElementById('deductionChart');
+            if (!incomeEl || !deductionEl || !window.Chart) return;
+
+            const incomeCtx = incomeEl.getContext('2d');
+            incomeChartInstance = new Chart(incomeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['本俸', '加給', '伙食', '加班費'],
+                    datasets: [{
+                        data: [38000, 8000, 2400, 0],
+                        backgroundColor: ['#5c4033', '#7c6f64', '#d4c4b0', '#e6dbcc'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
+                }
+            });
+
+            const deductionCtx = deductionEl.getContext('2d');
+            deductionChartInstance = new Chart(deductionCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['便當費', '勞保', '就保', '健保', '福利金'],
+                    datasets: [{
+                        data: [1200, 1053, 92, 710, 190],
+                        backgroundColor: ['#d97706', '#5c4033', '#7c6f64', '#d4c4b0', '#e6dbcc'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
+                }
+            });
+        }
+
+        function updateCharts() {
+            if (!incomeChartInstance || !deductionChartInstance) return;
+            const s = appState.settings;
+            const ot = getCycleOvertimeTotals();
+            incomeChartInstance.data.datasets[0].data = [Number(s.baseSalary || 0), Number(s.profAllowance || 0), Number(s.mealAllowance || 0), ot.company];
+            incomeChartInstance.update();
+            const dedLabor = Math.round(Number(s.laborInsured || 0) * 0.115 * 0.20);
+            const dedEmploi = Math.round(Number(s.laborInsured || 0) * 0.01 * 0.20);
+            const dependents = Math.min(3, Math.max(0, Number(s.healthDependents || 0)));
+            const dedHealth = Math.round(Number(s.healthInsured || 0) * 0.0517 * 0.30 * (1 + dependents));
+            const welfareFund = Math.round(Number(s.baseSalary || 0) * 0.005);
+            const customSum = (appState.customDeductions || []).reduce((a, d) => a + Number(d.amount || 0), 0);
+            deductionChartInstance.data.labels = ['便當費', '勞保', '就保', '健保', '福利金', '其他'];
+            deductionChartInstance.data.datasets[0].data = [getCurrentCycleBentoFee(), dedLabor, dedEmploi, dedHealth, welfareFund, customSum];
+            deductionChartInstance.update();
+        }
+
+        // --- Official Calendar Management ---
+        function renderOfficialManagementTable() {
+            const tbody = document.getElementById('mgmt-holiday-table-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            const meta = appState.calendarSyncMeta || {};
+            const years = meta.years && meta.years.length ? meta.years : [...new Set(Object.keys(appState.officialHolidays || {}).map(k => k.slice(0,4)))];
+            document.getElementById('mgmt-calendar-year').textContent = years.length ? `${years.join('、')} 年` : '尚未同步';
+            document.getElementById('mgmt-last-update').textContent = meta.updatedAt || appState.lastCalendarUpdate || '尚未更新';
+
+            const entries = [
+                ...Object.entries(appState.officialHolidays || {}).map(([date, info]) => ({ date, info, type: '國定假日/放假日' })),
+                ...Object.entries(appState.officialWorkdays || {}).map(([date, info]) => ({ date, info, type: '補班日' }))
+            ].sort((a, b) => a.date.localeCompare(b.date));
+            entries.forEach(({ date, info, type }) => {
+                const tr = document.createElement('tr');
+                const dateCell = document.createElement('td');
+                dateCell.className = 'p-2 font-medium text-[11px]';
+                dateCell.textContent = date;
+                const nameCell = document.createElement('td');
+                nameCell.className = 'p-2 font-bold text-xs';
+                nameCell.textContent = info.name || type;
+                const typeCell = document.createElement('td');
+                typeCell.className = 'p-2 text-[10px]';
+                const tag = document.createElement('span');
+                tag.className = type === '補班日' ? 'px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded font-medium' : 'px-1.5 py-0.5 bg-rose-100 text-rose-800 rounded font-medium';
+                tag.textContent = type;
+                typeCell.appendChild(tag);
+                tr.append(dateCell, nameCell, typeCell);
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openCalendarUpdateModal() {
+            const modal = document.getElementById('modal-calendar-update');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            const content = document.getElementById('calendar-update-content');
+            const meta = appState.calendarSyncMeta || {};
+            const last = meta.updatedAt || appState.lastCalendarUpdate || '尚未更新';
+            content.innerHTML = `
+                <div class="rounded-xl border border-milk-200 bg-milk-50 p-3 text-coffee space-y-2">
+                    <p class="font-bold text-milk-900">政府辦公日曆資料同步</p>
+                    <p>資料依據：行政院人事行政總處「政府行政機關辦公日曆表」，透過公開 JSON 資料鏡像取得。更新後會保存於本機瀏覽器。</p>
+                    <p>上次同步：<strong>${last}</strong></p>
+                    <p class="text-amber-800">提醒：政府辦公日曆主要適用政府行政機關；民間企業仍應依勞基法、公司行事曆及實際排班確認。</p>
+                </div>
+                <div id="calendar-sync-status" class="text-xs text-coffee-light" aria-live="polite">按下「立即更新」開始同步本薪資週期涵蓋年度的資料。</div>
+            `;
+            const actions = document.getElementById('calendar-update-actions');
+            actions.innerHTML = `
+                <button onclick="closeModal('modal-calendar-update')" class="px-3 py-1.5 text-xs font-medium rounded-xl bg-milk-200 text-milk-900 hover:bg-milk-300">關閉</button>
+                <button id="calendar-sync-button" onclick="syncOfficialCalendar()" class="px-3 py-1.5 text-xs font-medium rounded-xl btn-coffee">立即更新</button>
+            `;
+            safeInitLucide();
+        }
+
+        function normalizeCalendarDate(item) {
+            const raw = String(item.date || item.Date || item.date_format || '').replace(/\D/g, '');
+            if (raw.length >= 8) {
+                return `${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}`;
+            }
+            return '';
+        }
+
+        function isCalendarHoliday(item) {
+            const value = item.isHoliday ?? item.isholiday ?? item.is_holiday ?? item.holiday;
+            return value === true || value === 2 || value === '2' || String(value).toLowerCase() === 'true';
+        }
+
+        function isCalendarMakeupWorkday(item) {
+            const value = item.isHoliday ?? item.isholiday ?? item.is_holiday ?? item.holiday;
+            const description = String(item.description || item.caption || item.name || '').trim();
+            return (value === false || value === 0 || value === '0' || String(value).toLowerCase() === 'false')
+                && /(補行上班|調整上班|補班|上班日)/.test(description);
+        }
+
+        async function fetchCalendarYear(year) {
+            const urls = [
+                `https://cdn.jsdelivr.net/gh/ruyut/TaiwanCalendar/data/${year}.json`,
+                `https://api.pin-yi.me/taiwan-calendar/${year}`
+            ];
+            let lastError = null;
+            for (const url of urls) {
+                try {
+                    const response = await fetch(url, { cache: 'no-store' });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = await response.json();
+                    const rows = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : null);
+                    if (!rows || rows.length < 300) throw new Error('資料格式不符或年度資料不完整');
+                    return { rows, url };
+                } catch (error) {
+                    lastError = error;
+                }
+            }
+            throw new Error(`${year} 年資料取得失敗：${lastError ? lastError.message : '未知錯誤'}`);
+        }
+
+        async function syncOfficialCalendar() {
+            const button = document.getElementById('calendar-sync-button');
+            const status = document.getElementById('calendar-sync-status');
+            if (button) { button.disabled = true; button.textContent = '更新中…'; }
+            if (status) status.textContent = '正在連線取得政府辦公日曆資料，請稍候…';
+
+            try {
+                const { startDate, endDate } = getCycleDateRange(appState.currentCycle);
+                const years = [...new Set([startDate.getFullYear(), endDate.getFullYear()])];
+                let holidayCount = 0;
+                let workdayCount = 0;
+                const sources = [];
+                // 先在暫存物件完成所有年度下載與解析，全部成功後才覆蓋正式資料。
+                const nextHolidays = { ...(appState.officialHolidays || {}) };
+                const nextWorkdays = { ...(appState.officialWorkdays || {}) };
+
+                for (const year of years) {
+                    const result = await fetchCalendarYear(year);
+                    const yearPrefix = `${year}-`;
+                    Object.keys(nextHolidays).forEach(key => {
+                        if (key.startsWith(yearPrefix)) delete nextHolidays[key];
+                    });
+                    Object.keys(nextWorkdays).forEach(key => {
+                        if (key.startsWith(yearPrefix)) delete nextWorkdays[key];
+                    });
+
+                    result.rows.forEach(item => {
+                        const dateKey = normalizeCalendarDate(item);
+                        if (!dateKey || !dateKey.startsWith(yearPrefix)) return;
+                        const description = String(item.description || item.caption || item.name || item.holidayName || '').trim();
+                        const holiday = isCalendarHoliday(item);
+                        const makeupWorkday = isCalendarMakeupWorkday(item);
+
+                        if (holiday) {
+                            const date = new Date(`${dateKey}T12:00:00`);
+                            const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                            // 避免將沒有節日說明的一般週末全部列為節日。
+                            if (description || !isWeekend) {
+                                nextHolidays[dateKey] = {
+                                    name: description || '放假日',
+                                    type: 'national',
+                                    source: 'government-calendar-api'
+                                };
+                                holidayCount++;
+                            }
+                        } else if (makeupWorkday) {
+                            nextWorkdays[dateKey] = {
+                                name: description || '補班日',
+                                type: 'makeup-workday',
+                                source: 'government-calendar-api'
+                            };
+                            workdayCount++;
+                        }
+                    });
+                    sources.push(result.url);
+                }
+
+                appState.officialHolidays = nextHolidays;
+                appState.officialWorkdays = nextWorkdays;
+                const updatedAt = new Date().toLocaleString('zh-TW', { hour12: false });
+                appState.lastCalendarUpdate = updatedAt;
+                appState.calendarSyncMeta = {
+                    updatedAt,
+                    years,
+                    source: '行政院人事行政總處政府行政機關辦公日曆表（公開資料 JSON 鏡像）',
+                    urls: sources
+                };
+                saveToLocalStorage();
+                renderCalendar();
+                renderOfficialManagementTable();
+                calculateAndRenderSummary();
+
+                if (status) {
+                    status.textContent = `更新成功：${years.join('、')} 年資料已同步；辨識到 ${holidayCount} 個放假日、${workdayCount} 個補班日。資料已儲存於本機。`;
+                    status.className = 'text-xs text-emerald-700 font-medium';
+                }
+            } catch (error) {
+                console.error('行事曆同步失敗：', error);
+                if (status) {
+                    status.textContent = `更新失敗：${error.message}。請確認網路連線，稍後再試；原有行事曆資料不會被清除。`;
+                    status.className = 'text-xs text-red-700';
+                }
+            } finally {
+                if (button) { button.disabled = false; button.textContent = '再次更新'; }
+            }
+        }
+
+        // --- Excel Export (SheetJS) ---
+        function exportToExcel() {
+            if (!window.XLSX) return;
+            const wb = XLSX.utils.book_new();
+            
+            const s = appState.settings;
+            const bentoFee = getCurrentCycleBentoFee();
+            const welfareFund = Math.round(s.baseSalary * 0.005);
+            const fixedSum = Number(s.baseSalary || 0) + Number(s.profAllowance || 0) + Number(s.mealAllowance || 0);
+            const ot = getCycleOvertimeTotals();
+            const dedLabor = Math.round(Number(s.laborInsured || 0) * 0.115 * 0.20);
+            const dedEmploi = Math.round(Number(s.laborInsured || 0) * 0.01 * 0.20);
+            const dedHealth = Math.round(Number(s.healthInsured || 0) * 0.0517 * 0.30 * (1 + Math.min(3, Math.max(0, Number(s.healthDependents || 0)))));
+            
+            const sheet1Data = [
+                ["台灣薪資與加班費計算總表"],
+                ["計算週期", appState.currentCycle],
+                [],
+                ["【固定薪資項目】", "金額 (NT$)"],
+                ["本俸", s.baseSalary],
+                ["專業加給", s.profAllowance],
+                ["伙食津貼", s.mealAllowance],
+                ["固定薪資合計", fixedSum],
+                ["加班費（公司算法）", ot.company],
+                ["薪資加項總額", fixedSum + ot.company],
+                [],
+                ["【扣款項目】", "金額 (NT$)"],
+                ["便當費", bentoFee],
+                ["勞保員工自付額", dedLabor],
+                ["就業保險員工自付額", dedEmploi],
+                ["健保員工自付額", dedHealth],
+                ["公司福利金", welfareFund],
+            ];
+            appState.customDeductions.forEach(d => {
+                sheet1Data.push([d.name, d.amount]);
+            });
+            const totalDed = bentoFee + dedLabor + dedEmploi + dedHealth + welfareFund + appState.customDeductions.reduce((acc, curr) => acc + curr.amount, 0);
+            sheet1Data.push(["扣款總額", totalDed]);
+            sheet1Data.push([]);
+            sheet1Data.push(["預估實領薪資", fixedSum + ot.company - totalDed]);
+
+            const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
+            XLSX.utils.book_append_sheet(wb, ws1, "薪資總表");
+
+            const { startDate, endDate } = getCycleDateRange(appState.currentCycle);
+            const sheet2Data = [
+                ["日期", "星期", "當日性質", "平日加班(時)", "休息日出勤(時)", "例假日出勤(時)", "國定假日出勤(時)", "備註"]
+            ];
+            let curr = new Date(startDate);
+            const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+            while (curr <= endDate) {
+                const dateKey = `${curr.getFullYear()}-${String(curr.getMonth()+1).padStart(2,'0')}-${String(curr.getDate()).padStart(2,'0')}`;
+                const rec = appState.attendanceRecords[dateKey];
+                if (rec) {
+                    sheet2Data.push([
+                        dateKey,
+                        `星期${dayNames[curr.getDay()]}`,
+                        rec.dayType,
+                        rec.otWeekday || 0,
+                        rec.otRest || 0,
+                        rec.otRegular || 0,
+                        rec.otNational || 0,
+                        rec.note || ""
+                    ]);
+                }
+                curr.setDate(curr.getDate() + 1);
+            }
+            const ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
+            XLSX.utils.book_append_sheet(wb, ws2, "每日加班紀錄");
+
+            XLSX.writeFile(wb, `加班費與薪資計算_${appState.currentCycle}.xlsx`);
+        }
+
+        // --- JSON Backup & Restore ---
+        function exportJsonBackup() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appState, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `taiwan_salary_backup_${appState.currentCycle}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importJsonBackup(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (parsed && parsed.settings) {
+                        appState = parsed;
+                        saveToLocalStorage();
+                        renderSettingsToUI();
+                        renderCalendar();
+                        calculateAndRenderSummary();
+                        renderOfficialManagementTable();
+                        updateCharts();
+                    }
+                } catch(err) {
+                    console.error("JSON parse failed");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function confirmResetData() {
+            if (confirm("確定要清除所有本機儲存的薪資與加班紀錄嗎？")) {
+                localStorage.removeItem('taiwan_salary_app_state_2026');
+                location.reload();
+            }
+        }
+
+        // --- PWA Service Worker Registration ---
+        function registerServiceWorker() {
+            if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('./service-worker.js', { scope: './' })
+                        .then(registration => console.info('PWA Service Worker ready:', registration.scope))
+                        .catch(error => console.warn('PWA Service Worker registration failed:', error));
+                }, { once: true });
+            } else if (location.protocol === 'file:') {
+                console.info('請透過 HTTPS 網址開啟，才能啟用 PWA 與離線快取。');
+            }
+        }
+    </script>
+</body>
+</html>
